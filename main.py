@@ -127,7 +127,13 @@ async def ask_question(question: str = Form(...)):
                     - Maintain empathy while staying precise and concise
                     - Ask thoughtful questions that promote self-discovery
                     - Highlight patterns between values, challenges, and goals
-                    
+                    - also add some quotes from the knowledge base if relevant
+                    - include the quotes in double quotations so they can be easily identified
+                    - Use a friendly and supportive tone
+                    - Avoid jargon or overly complex language
+                    - Focus on understanding the user's perspective
+                    - Use the knowledge context to enrich your responses
+                    - Avoid giving direct advice or solutions
                     Base your responses on both the knowledge context and personal context provided.
                     Focus on understanding rather than advising."""
                 },
@@ -140,8 +146,8 @@ async def ask_question(question: str = Form(...)):
                     Please provide a thoughtful response that connects the question to my personal values and current situation."""
                 }
             ],
-            "temperature": 0.3,
-            "max_tokens": 100,
+            "temperature": 0.5,
+            "max_tokens": 500,
             "top_p": 1,
             "stream": False
         }
