@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import JSONResponse
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -7,6 +7,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings  # Updated import
 import requests
 from pathlib import Path
+from typing import List, Dict, Optional
+from pydantic import BaseModel, Field
 
 app = FastAPI()
 
@@ -20,7 +22,6 @@ HEADERS = {
 
 # === Global Initialization ===
 KNOWLEDGE_BASE_PATH = Path("knowledge_base.md")
-# Using HuggingFace's all-MiniLM-L6-v2 model for embeddings
 embedding = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
     model_kwargs={'device': 'cpu'}
@@ -50,50 +51,97 @@ def load_and_embed():
 async def startup_event():
     load_and_embed()
 
+# === Personal Context Model ===
+class PersonalContext(BaseModel):
+    values: List[str] = Field(default=[], description="List of personal values")
+    challenges: List[str] = Field(default=[], description="List of current challenges")
+    mood: Optional[str] = Field(default="neutral", description="Current emotional state")
+    goals: Optional[List[str]] = Field(default=[], description="List of personal goals")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "values": ["growth", "authenticity", "compassion"],
+                "challenges": ["work-life balance", "self-doubt"],
+                "mood": "contemplative",
+                "goals": ["self-improvement", "meaningful work"]
+            }
+        }
+
+# Initial user context
+user_context = PersonalContext(
+    values=[],
+    challenges=[],
+    goals=[]
+)
+
+# === Update Personal Context Endpoint ===
+@app.post("/update_context")
+async def update_personal_context(context: PersonalContext):
+    try:
+        global user_context
+        user_context = context
+        return {"message": "Personal context updated successfully", "context": context.dict()}
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
 # === Ask a Question Endpoint ===
 @app.post("/ask")
 async def ask_question(question: str = Form(...)):
-    global vectorstore
-    if not vectorstore:
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Knowledge base not initialized."}
-        )
-
+    if not question or question.isspace():
+        raise HTTPException(status_code=422, detail="Question cannot be empty")
+    
     try:
+        global vectorstore, user_context
+        if not vectorstore:
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Knowledge base not initialized."}
+            )
+
         relevant_docs = vectorstore.similarity_search(question, k=3)
         context = "\n\n".join([doc.page_content for doc in relevant_docs])
+
+        # Create personal context string
+        personal_context = f"""
+        Personal Values: {', '.join(user_context.values)}
+        Current Challenges: {', '.join(user_context.challenges)}
+        Current Mood: {user_context.mood}
+        Personal Goals: {', '.join(user_context.goals)}
+        """
 
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
                 {
                     "role": "system",
-                    "content": """You are a thoughtful companion who balances insight with a tiny bit of philosophical tone for practical understanding. 
-                    Your responses should:
-                    - Be clear and direct while maintaining depth
-                    - Connect tiny philosophical concepts to everyday experiences but be straightforward
-                    - Avoid being overly abstract or complex
-                    - Use simple language while preserving meaningful insights
-                    - Dont give much more information if it's not needed or not asked for
-                    - Use simple language while preserving meaningful insights
-                    - Focus on understanding the core of the question
-                    - Avoid giving direct advice or solutions. But answer directly what has been asked
-                    - Encourage reflection and personal insight
-                    - Maintain a conversational tone
+                    "content": """You are a thoughtful companion who understands personal values and life challenges. 
+                    Consider the provided personal context while formulating responses.
+                    Your approach should:
+                    - Honor and reinforce stated personal values
+                    - Acknowledge current challenges without trying to solve them directly
+                    - Consider emotional state/mood in your response tone
+                    - Connect insights to personal situation
+                    - Encourage self-reflection about values and challenges
+                    - Help explore the relationship between personal values and current challenges
+                    - Maintain empathy while staying precise and concise
+                    - Ask thoughtful questions that promote self-discovery
+                    - Highlight patterns between values, challenges, and goals
                     
-                    Base your responses only on the context provided. Keep responses concise and relatable."""
+                    Base your responses on both the knowledge context and personal context provided.
+                    Focus on understanding rather than advising."""
                 },
                 {
                     "role": "user",
-                    "content": f"""Context:\n{context}\n\n
+                    "content": f"""Personal Context:\n{personal_context}\n
+                    Knowledge Context:\n{context}\n
                     Question: {question}
                     
-                    Please provide a clear, thoughtful response that balances philosophical insight with practical understanding."""
+                    Please provide a thoughtful response that connects the question to my personal values and current situation."""
                 }
             ],
-            "temperature": 0.5,  # Reduced for more focused responses
-            "max_tokens": 150,   # Increased slightly for complete thoughts
+            "temperature": 0.3,
+            "max_tokens": 100,
             "top_p": 1,
             "stream": False
         }
@@ -107,10 +155,7 @@ async def ask_question(question: str = Form(...)):
         return {"answer": result["choices"][0]["message"]["content"]}
     
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Query processing failed: {str(e)}"}
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 # === Health Check ===
 @app.get("/")
