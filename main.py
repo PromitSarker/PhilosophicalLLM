@@ -14,7 +14,7 @@ from App.core.config import (
 
 # Initialize FastAPI app with metadata
 app = FastAPI(
-    title="Philosophical LLM API",
+    title="Live Journal API",
     description="A RAG-based API for philosophical discussions",
     version="1.0.0"
 )
