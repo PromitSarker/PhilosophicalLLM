@@ -35,7 +35,6 @@ class ChatService:
         return f"""
         Personal Values: {', '.join(self.user_context.values)}
         Current Challenges: {', '.join(self.user_context.challenges)}
-        Current Mood: {self.user_context.mood}
         Personal Goals: {', '.join(self.user_context.goals)}
         """
 
@@ -68,7 +67,6 @@ class ChatService:
                     Your approach should:
                     - Honor and reinforce stated personal values
                     - Acknowledge current challenges without trying to solve them directly
-                    - Consider emotional state/mood in your response tone
                     - Connect insights to personal situation
                     - Encourage self-reflection about values and challenges
                     - Help explore the relationship between personal values and current challenges
