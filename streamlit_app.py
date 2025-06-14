@@ -66,10 +66,62 @@ def clear_history() -> None:
     except requests.exceptions.RequestException as e:
         st.error(f"Request failed: {str(e)}")
 
+def get_quotes() -> None:
+    """Fetch and display relevant quotes."""
+    try:
+        response = requests.get(f"{API_BASE_URL}/quotes")
+        if response.status_code == 200:
+            data = response.json()
+            st.subheader("Relevant Quotes")
+            for quote in data.get("quotes", []):
+                st.markdown(f"> _{quote}_")
+        else:
+            st.error(f"Error fetching quotes: {response.json().get('detail', 'Unknown error')}")
+    except requests.exceptions.RequestException as e:
+        st.error(f"Request failed: {str(e)}")
+
+def set_user_name(name: str) -> None:
+    """Set user's name"""
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/set_name",
+            json={"name": name},
+            headers={"Content-Type": "application/json"}
+        )
+        if response.status_code == 200:
+            st.success(f"Hello, {name}!")
+            st.session_state.user_name = name
+        else:
+            st.error("Failed to set name")
+    except requests.exceptions.RequestException as e:
+        st.error(f"Request failed: {str(e)}")
+
+def get_user_name() -> str:
+    """Get user's stored name"""
+    try:
+        response = requests.get(f"{API_BASE_URL}/get_name")
+        if response.status_code == 200:
+            return response.json().get("name")
+    except requests.exceptions.RequestException:
+        return None
+
 def main():
     st.set_page_config(page_title="Philosophical AI Assistant", page_icon="🤖")
-    st.title("Philosophical AI Assistant")
-
+    
+    # Initialize session state for user name
+    if "user_name" not in st.session_state:
+        st.session_state.user_name = get_user_name()
+    
+    # User name input section
+    if not st.session_state.user_name:
+        st.header("Welcome!")
+        name = st.text_input("What's your name?")
+        if name and st.button("Continue"):
+            set_user_name(name)
+            st.rerun()
+    else:
+        st.title(f"Hello, {st.session_state.user_name}! 👋")
+    
     # Sidebar for personal context
     st.sidebar.header("Personal Context")
     
@@ -103,6 +155,11 @@ def main():
     with col2:
         if st.button("Clear History"):
             clear_history()
+
+    # Add a quotes section
+    st.subheader("Philosophical Quotes")
+    if st.button("Get Relevant Quotes"):
+        get_quotes()
 
 if __name__ == "__main__":
     main()

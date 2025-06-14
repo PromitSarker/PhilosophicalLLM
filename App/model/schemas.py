@@ -1,6 +1,9 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
+class UserProfile(BaseModel):
+    name: str
+    
 class PersonalContext(BaseModel):
     values: List[str] = Field(default=[], description="List of personal values")
     challenges: List[str] = Field(default=[], description="List of current challenges")
