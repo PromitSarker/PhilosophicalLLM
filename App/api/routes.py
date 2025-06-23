@@ -21,7 +21,7 @@ async def get_quotes(
 ):
     """1. Get relevant quotes based on user's current context.
     2. Just give the quote no explanation or anything. Just the quote 
-    3. Provide 3 questions to ask the user to help them reflect on their context.
+    3. Provide 3 questions to ask the user to help them reflect on their context and the quote provided.
     """
     from main import vectorstore  # Import here to avoid circular imports
     return await chat_service.get_quotes(vectorstore, user_id)
