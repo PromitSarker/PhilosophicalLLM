@@ -29,22 +29,49 @@ async def get_quotes(
 @router.post("/ask")
 async def ask_question(
     question: str = Form(...),
-    user_id: Optional[str] = Header(default="default")
+    user_id: Optional[str] = Header(default="default"),
 ):
+    """1. Get relevant quotes based on user's current context.
+    2. Just give the quote no explanation or anything. Just the quote 
+    3. If there's no quote from knowledge base, then use the LLM to fetch a quote from the internet.
+    """
     from main import vectorstore  # Import here to avoid circular imports
     return await chat_service.get_response(question, vectorstore, user_id)
 
 @router.post("/chat")
 async def chat_endpoint(request: Request):
     data = await request.json()
-    # Expecting data to have: values, feelings, challenges, reflections
     values = data.get("values", [])
     feelings = data.get("feelings", [])
     challenges = data.get("challenges", [])
-    reflections = data.get("reflections", {})
+    goals = data.get("goals", [])
+    alignment_moment = data.get("alignment_moment", "")
+    misalignment_moment = data.get("misalignment_moment", "")
+    greater_alignment = data.get("greater_alignment", "")
+    reflections = data.get("reflections", "")
+    question = data.get("question", "")
+    user_id = data.get("user_id", "default")
+    system_prompt = data.get("system_prompt", None)
 
-    response = process_user_input(values, feelings, challenges, reflections)
-    return response
+    # Update user context
+    context = PersonalContext(
+        values=values,
+        feelings=feelings,
+        challenges=challenges,
+        goals=goals,
+        alignment_moment=alignment_moment,
+        misalignment_moment=misalignment_moment,
+        greater_alignment=greater_alignment,
+        reflections=reflections
+    )
+    chat_service.update_context(context)
+
+    # If a question is provided, get a response
+    if question:
+        from main import vectorstore
+        return await chat_service.get_response(question, vectorstore, user_id, system_prompt)
+    else:
+        return {"message": "Context updated. No question provided."}
 
 @router.post("/clear_history")
 async def clear_chat_history(

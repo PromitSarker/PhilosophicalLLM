@@ -18,21 +18,17 @@ class ChatService:
         self.user_context = PersonalContext(
             values=[],
             challenges=[],
-            goals=[]
+            goals=[],
+            feelings=[],
+            alignment_moment="",
+            misalignment_moment="",
+            greater_alignment="",
+            reflections=""
         )
         # Use defaultdict for automatic initialization of new user conversations
         self.conversations = defaultdict(list)
         self.user_names = {}
-        self.max_history = 10  # Maximum number of messages to keep in history
-
-    def set_user_name(self, name: str, user_id: str = "default") -> dict:
-        """Store user's name"""
-        self.user_names[user_id] = name
-        return {"message": f"Hello, {name}! I'll remember you."}
-    
-    def get_user_name(self, user_id: str = "default") -> str:
-        """Get user's name if stored"""
-        return self.user_names.get(user_id, None)
+        self.max_history = 5  # Limit conversation history to last N messages
 
     def update_context(self, context: PersonalContext):
         """Update the user's personal context"""
@@ -45,12 +41,17 @@ class ChatService:
     def create_context_string(self) -> str:
         """Create a formatted string of the user's personal context"""
         return f"""
-        Personal Values: {', '.join(self.user_context.values)}
-        Current Challenges: {', '.join(self.user_context.challenges)}
-        Personal Goals: {', '.join(self.user_context.goals)}
-        """
+    Personal Values: {', '.join(self.user_context.values)}
+    Current Challenges: {', '.join(self.user_context.challenges)}
+    Personal Goals: {', '.join(self.user_context.goals)}
+    Feelings Today: {', '.join(self.user_context.feelings) if self.user_context.feelings else ''}
+    Moment of Alignment: {self.user_context.alignment_moment}
+    Moment of Misalignment: {self.user_context.misalignment_moment}
+    Greater Alignment Looks Like: {self.user_context.greater_alignment}
+    Reflections: {self.user_context.reflections}
+    """
 
-    async def get_response(self, question: str, vectorstore, user_id: str = "default") -> dict:
+    async def get_response(self, question: str, vectorstore, user_id: str = "default", system_prompt: str = None) -> dict:
         """Get response for user question using RAG and LLM with conversation memory"""
         if not question or question.isspace():
             raise HTTPException(status_code=422, detail="Question cannot be empty")
@@ -61,9 +62,6 @@ class ChatService:
                     status_code=500,
                     content={"error": "Knowledge base not initialized."}
                 )
-
-            # Get the user's name
-            user_name = self.user_names.get(user_id, "")
 
             # Get relevant documents
             relevant_docs = vectorstore.similarity_search(question, k=3)
@@ -80,11 +78,10 @@ class ChatService:
             # Add user name to the system message
             system_message = {
                 "role": "system",
-                "content": f"""You are a thoughtful companion who understands personal values and life challenges. 
-                The user's name is {user_name}. Address them by name when appropriate.
+                "content": system_prompt if system_prompt else f"""You are a thoughtful companion who understands personal values and life challenges. 
                 Consider the provided personal context while formulating responses.
                 Your approach should:
-                - Do not repeat the question. Sometimes do change the greeting part
+                - Do not repeat the question.
                 - Honor and reinforce stated personal values
                 - Acknowledge current challenges without trying to solve them directly
                 - Connect insights to personal situation
